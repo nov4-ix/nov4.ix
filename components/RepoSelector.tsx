@@ -6,29 +6,19 @@ import { LockClosedIcon, LockOpenIcon } from './icons/LockIcons';
 import { ForkIcon } from './icons/ForkIcon';
 import { PlusIcon } from './icons/PlusIcon';
 import Spinner from './Spinner';
+import { useAppContext } from '../contexts/AppContext';
 
-interface RepoSelectorProps {
-  onSelectRepo: (repo: Repository) => void;
-  repos: Repository[];
-  token: string | null;
-  onRefreshRepos: () => void;
-}
-
-const RepoSelector: React.FC<RepoSelectorProps> = ({ onSelectRepo, repos, token, onRefreshRepos }) => {
+const RepoSelector: React.FC = () => {
+  const { repos, selectRepo, token, refreshRepos } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Fork state
   const [repoUrl, setRepoUrl] = useState('');
   const [isForking, setIsForking] = useState(false);
   const [forkError, setForkError] = useState<string | null>(null);
 
-  // Create state
   const [newRepoName, setNewRepoName] = useState('');
-  const [newRepoDesc, setNewRepoDesc] = useState('');
-  const [isNewRepoPrivate, setIsNewRepoPrivate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-
 
   const filteredRepos = useMemo(() => {
     if (!repos) return [];
@@ -54,8 +44,8 @@ const RepoSelector: React.FC<RepoSelectorProps> = ({ onSelectRepo, repos, token,
 
     try {
       const forkedRepo = await api.forkRepository(token, owner, repo);
-      onRefreshRepos(); 
-      onSelectRepo(forkedRepo);
+      await refreshRepos(); 
+      selectRepo(forkedRepo);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "No se pudo hacer fork del repositorio. Puede ser privado o ya existir en tu cuenta.";
       console.error("Forking failed:", err);
@@ -71,9 +61,9 @@ const RepoSelector: React.FC<RepoSelectorProps> = ({ onSelectRepo, repos, token,
     setIsCreating(true);
 
     try {
-      const newRepo = await api.createRepository(token, newRepoName, newRepoDesc, isNewRepoPrivate);
-      await onRefreshRepos();
-      onSelectRepo(newRepo);
+      const newRepo = await api.createRepository(token, newRepoName, "Nuevo repositorio creado con Son1k-GO!", false);
+      await refreshRepos();
+      selectRepo(newRepo);
     } catch(err) {
        const errorMessage = err instanceof Error ? err.message : "No se pudo crear el repositorio.";
        console.error("Creation failed:", err);
@@ -82,7 +72,6 @@ const RepoSelector: React.FC<RepoSelectorProps> = ({ onSelectRepo, repos, token,
        setIsCreating(false);
     }
   }
-
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -163,7 +152,7 @@ const RepoSelector: React.FC<RepoSelectorProps> = ({ onSelectRepo, repos, token,
         {filteredRepos.map(repo => (
           <div
             key={repo.id}
-            onClick={() => onSelectRepo(repo)}
+            onClick={() => selectRepo(repo)}
             className="bg-[#122024]/50 border border-[#15333B] rounded-lg p-5 cursor-pointer hover:bg-[#122024]/80 hover:border-[#B858FE] transition-all duration-200 group"
           >
             <div className="flex items-center mb-2">

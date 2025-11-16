@@ -1,10 +1,11 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import hljs from 'highlight.js';
-import { Repository, AIConfig, ChatMessage, AIProvider, OpenFile, ProjectAnalysisFinding, RepoCleanupSuggestion, FileTreeItem } from '../types';
+import { OpenFile, ProjectAnalysisFinding, RepoCleanupSuggestion, FileTreeItem, ChatMessage, AIProvider } from '../types';
 import { api } from '../services/api';
 import { vscodeApi } from '../services/vscodeApi';
 import * as aiService from '../services/ai';
+import { useAppContext } from '../contexts/AppContext';
+
 import FileTree from './FileTree';
 import DiffViewer from './DiffViewer';
 import Spinner from './Spinner';
@@ -17,22 +18,18 @@ import { BackArrowIcon } from './icons/BackArrowIcon';
 import { UserIcon } from './icons/UserIcon';
 import { CloseIcon } from './icons/CloseIcon';
 
-interface CodeAssistantProps {
-  repo: Repository;
-  token: string;
-  aiConfig: AIConfig;
-  chatHistory: ChatMessage[];
-  setChatHistory: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
-  onFileTreeUpdate: () => void;
-  onDeployClick: (repo: Repository) => void;
-  onBackToRepos: () => void;
-  isVscode?: boolean;
-}
-
 type AnalyzedFinding = ProjectAnalysisFinding & { status: 'pending' | 'applying' | 'applied' | 'ignored' };
 
+const CodeAssistant: React.FC = () => {
+  const { 
+    selectedRepo: repo, 
+    token, 
+    aiConfig, 
+    isVscode, 
+    setCurrentView,
+    refreshFileTree 
+  } = useAppContext();
 
-const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, chatHistory, setChatHistory, onFileTreeUpdate, onDeployClick, onBackToRepos, isVscode = false }) => {
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
 
@@ -43,36 +40,58 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
 
-  // State for Project Analysis
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalyzedFinding[] | null>(null);
 
-  // State for Repo Cleanup
   const [isCleaning, setIsCleaning] = useState(false);
   const [isCleanupModalOpen, setIsCleanupModalOpen] = useState(false);
   const [cleanupSuggestions, setCleanupSuggestions] = useState<RepoCleanupSuggestion[]>([]);
 
-  // State for AI Rules
   const [aiRules, setAiRules] = useState('');
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+
+  // Load chat history from session storage on repo change
   useEffect(() => {
-    try {
-      const savedRules = localStorage.getItem(`ai_rules_${repo.id}`);
-      if (savedRules) {
-        setAiRules(savedRules);
+    if (repo) {
+      try {
+        const savedHistory = sessionStorage.getItem(`chatHistory_${repo.id}`);
+        setChatHistory(savedHistory ? JSON.parse(savedHistory) : []);
+      } catch (e) {
+        console.error("Failed to load chat history:", e);
+        setChatHistory([]);
       }
-    } catch (e) {
-      console.error("Failed to parse AI rules from localStorage", e);
     }
-  }, [repo.id]);
+  }, [repo]);
+
+  // Save chat history to session storage
+  useEffect(() => {
+    if (repo && chatHistory.length > 0) {
+      sessionStorage.setItem(`chatHistory_${repo.id}`, JSON.stringify(chatHistory));
+    }
+  }, [chatHistory, repo]);
+
+
+  useEffect(() => {
+    if (repo) {
+        try {
+          const savedRules = localStorage.getItem(`ai_rules_${repo.id}`);
+          if (savedRules) {
+            setAiRules(savedRules);
+          }
+        } catch (e) {
+          console.error("Failed to parse AI rules from localStorage", e);
+        }
+    }
+  }, [repo?.id]);
 
   const handleSaveRules = (rules: string) => {
+    if (!repo) return;
     setAiRules(rules);
     localStorage.setItem(`ai_rules_${repo.id}`, rules);
     setIsRulesModalOpen(false);
   };
-
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -81,10 +100,9 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
   const activeFile = useMemo(() => openFiles.find(f => f.path === activeFilePath), [openFiles, activeFilePath]);
 
   const fileTreeString = useMemo(() => {
-    return repo.fileTree.map(f => f.path).join('\n');
-  }, [repo.fileTree]);
+    return repo?.fileTree.map(f => f.path).join('\n') || '';
+  }, [repo?.fileTree]);
 
-  // Auto-scroll chat to bottom
   useEffect(() => {
       if (chatContainerRef.current) {
           chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -92,6 +110,7 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
   }, [chatHistory]);
 
   const handleFileSelect = useCallback(async (path: string) => {
+    if (!repo || !token) return;
     if (openFiles.some(f => f.path === path)) {
         setActiveFilePath(path);
         return;
@@ -117,10 +136,9 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
     } finally {
       setIsLoadingFile(false);
     }
-  }, [token, repo.owner.login, repo.name, openFiles, isVscode]);
+  }, [token, repo, openFiles, isVscode]);
 
-  const handleCloseTab = (e: React.MouseEvent, path: string) => {
-      e.stopPropagation();
+  const closeTab = (path: string) => {
       const fileIndex = openFiles.findIndex(f => f.path === path);
       const newOpenFiles = openFiles.filter(f => f.path !== path);
       setOpenFiles(newOpenFiles);
@@ -134,19 +152,23 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
           }
       }
   };
+
+  const handleCloseTab = (e: React.MouseEvent, path: string) => {
+      e.stopPropagation();
+      closeTab(path);
+  };
   
-  // Auto-open README on repo load
   useEffect(() => {
     if (repo && repo.fileTree) {
         const readme = repo.fileTree.find(f => f.path.toLowerCase() === 'readme.md');
-        if (readme && openFiles.length === 0) { // Only auto-open if no files are open
+        if (readme && openFiles.length === 0) {
             handleFileSelect(readme.path);
         }
     }
-  }, [repo.fileTree, handleFileSelect, openFiles.length]);
+  }, [repo?.fileTree, handleFileSelect, openFiles.length]);
 
   const handleGenerateClick = async () => {
-    if (!prompt.trim() || !activeFile) return;
+    if (!prompt.trim() || !activeFile || !repo) return;
     
     setIsGenerating(true);
     abortControllerRef.current = new AbortController();
@@ -205,7 +227,7 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
   }
   
   const handleAcceptChanges = async (message: ChatMessage) => {
-      if (!message.suggestion || !activeFile) return;
+      if (!message.suggestion || !activeFile || !token || !repo) return;
       setIsCommitting(true);
 
       try {
@@ -219,6 +241,7 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
           } else {
             const userPromptForCommit = chatHistory.find(m => m.role === 'user' && m.id < message.id);
             const commitMessage = `Asistente IA: ${userPromptForCommit?.content.substring(0, 100) || `actualiza ${activeFile.path}`}`;
+            // FIX: Access sha as a property, not a function
             const result = await api.updateFileContent(token, repo.owner.login, repo.name, activeFile.path, message.suggestion, activeFile.sha, commitMessage);
             newSha = result.newSha;
           }
@@ -246,6 +269,7 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
   };
   
   const handleNewFile = async () => {
+      if (!token || !repo) return;
       try {
           if (isVscode) {
             await vscodeApi.request('createFile', {}); // The extension handles the UI prompt
@@ -253,7 +277,7 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
             const path = prompt("Ingresa la ruta y el nombre del nuevo archivo (ej. src/components/Button.tsx):");
             if (!path) return;
             await api.createFile(token, repo.owner.login, repo.name, path, `feat: Create ${path}`);
-            onFileTreeUpdate();
+            await refreshFileTree();
             handleFileSelect(path);
           }
       } catch (err) {
@@ -262,21 +286,24 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
   };
 
   const handleDeleteFile = async (path: string, sha: string) => {
+      if (!token || !repo) return;
       try {
           if (isVscode) {
               await vscodeApi.request('deleteFile', { path });
           } else {
               if (!confirm(`¿Estás seguro de que quieres eliminar "${path}"? Esta acción no se puede deshacer.`)) return;
               await api.deleteFile(token, repo.owner.login, repo.name, path, sha, `feat: Delete ${path}`);
-              onFileTreeUpdate();
+              await refreshFileTree();
           }
-          handleCloseTab(new MouseEvent('click'), path); // Simulate click to close tab
+          // FIX: Call closeTab directly instead of creating a synthetic event for handleCloseTab
+          closeTab(path);
       } catch (err) {
           setError(`Error al eliminar el archivo: ${(err as Error).message}`);
       }
   };
 
   const handleAnalyzeProject = async () => {
+    if (!token || !repo) return;
     setIsAnalyzing(true);
     setAnalysisResult(null);
     setError(null);
@@ -289,7 +316,7 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
         if (repo && repo.fileTree) {
             filesToFetch = repo.fileTree
                 .filter(file => keyFilePatterns.some(pattern => file.path.toLowerCase().endsWith(pattern)))
-                .slice(0, 7); // Limit to 7 files to avoid huge contexts
+                .slice(0, 7);
         }
 
         const filesContentPromises = filesToFetch.map(async file => {
@@ -315,11 +342,10 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
   };
 
   const handleApplyAnalysisSuggestion = async (findingIndex: number, userPrompt: string) => {
-    if (!analysisResult) return;
+    if (!analysisResult || !token || !repo) return;
 
     const finding = analysisResult[findingIndex];
 
-    // Set loading state
     setAnalysisResult(prev => prev!.map((f, i) => i === findingIndex ? { ...f, status: 'applying' } : f));
     setError(null);
 
@@ -348,20 +374,16 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
             newSha = result.newSha;
         }
         
-        // Update open file if it's open
         setOpenFiles(prev => prev.map(f => f.path === finding.file ? { ...f, content: newCode, sha: newSha } : f));
         
-        // Mark as applied
         setAnalysisResult(prev => prev!.map((f, i) => i === findingIndex ? { ...f, status: 'applied' } : f));
 
-        // Add a success message to chat
         setChatHistory(prev => [...prev, { id: `model_${Date.now()}`, role: 'model', content: `✅ ¡Sugerencia aplicada con éxito a \`${finding.file}\`!` }]);
 
     } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Ocurrió un error desconocido.";
         console.error("Failed to apply suggestion:", err);
         setError(`Error al aplicar la sugerencia para ${finding.file}: ${errorMessage}`);
-        // Revert status to pending on failure
         setAnalysisResult(prev => prev!.map((f, i) => i === findingIndex ? { ...f, status: 'pending' } : f));
     }
   };
@@ -390,7 +412,8 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
   };
 
   const handleConfirmCleanup = async (filesToDelete: string[]) => {
-      setIsCommitting(true); // Re-use for loading state in modal
+      if (!token || !repo) return;
+      setIsCommitting(true);
       let deletedCount = 0;
       let failedFiles: string[] = [];
 
@@ -398,7 +421,7 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
         const filesWithSha = filesToDelete.map(path => {
             const fileData = repo.fileTree.find(f => f.path === path);
             return fileData && fileData.type === 'blob' ? fileData : null;
-        }).filter((f): f is {path: string, sha: string, type: 'blob' | 'tree'} => f !== null);
+        }).filter((f): f is FileTreeItem => f !== null);
 
         for (const file of filesWithSha) {
             try {
@@ -408,9 +431,9 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
                     await api.deleteFile(token, repo.owner.login, repo.name, file.path, file.sha, `chore: Depurar archivo innecesario ${file.path}`);
                 }
                 deletedCount++;
-                // Close tab if the deleted file was open
                 if (openFiles.some(f => f.path === file.path)) {
-                    handleCloseTab(new MouseEvent('click'), file.path);
+                    // FIX: Call closeTab directly instead of creating a synthetic event for handleCloseTab
+                    closeTab(file.path);
                 }
             } catch (e) {
                 console.error(`Failed to delete file ${file.path}:`, e);
@@ -422,13 +445,13 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
         if (deletedCount > 0) {
             messages.push({ id: `model_${Date.now()}`, role: 'model', content: `✅ ¡Depuración completada! Se eliminaron ${deletedCount} archivos.` });
             if (!isVscode) {
-                onFileTreeUpdate();
+                await refreshFileTree();
             }
         }
         if (failedFiles.length > 0) {
             messages.push({ id: `model_${Date.now()}_error`, role: 'model', content: `⚠️ No se pudieron eliminar los siguientes archivos: ${failedFiles.join(', ')}`, error: 'Error de API' });
         }
-        if (messages.length === 0 && failedFiles.length === 0) {
+        if (messages.length === 0 && filesToDelete.length > 0) {
              messages.push({ id: `model_${Date.now()}`, role: 'model', content: `No se eliminó ningún archivo.` });
         }
         
@@ -444,7 +467,6 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
         setCleanupSuggestions([]);
       }
   };
-
 
   const handleOpenFromAnalysis = (path: string) => {
     handleFileSelect(path);
@@ -467,13 +489,17 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
 
   const isGeminiProvider = aiConfig.provider === AIProvider.GEMINI;
 
+  if (!repo) {
+    return <div className="flex items-center justify-center h-full"><Spinner /></div>;
+  }
+
   return (
     <>
       <div className="flex h-[calc(100vh-11rem)]">
         <div className="w-1/4 max-w-xs bg-[#122024]/50 border-r border-[#15333B] p-2 flex flex-col">
            <div className="p-2 mb-2">
               {!isVscode && (
-                <button onClick={onBackToRepos} className="flex items-center text-sm text-[#40FDAE] hover:text-[#35e09b] mb-2">
+                <button onClick={() => setCurrentView('REPO_SELECTOR')} className="flex items-center text-sm text-[#40FDAE] hover:text-[#35e09b] mb-2">
                   <BackArrowIcon className="h-4 w-4 mr-1"/>
                   Cambiar Repositorio
                 </button>
@@ -598,7 +624,7 @@ const CodeAssistant: React.FC<CodeAssistantProps> = ({ repo, token, aiConfig, ch
         {!isVscode && (
           <div className="fixed bottom-0 left-0 right-0 bg-[#171925]/80 backdrop-blur-sm border-t border-[#15333B]">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-end">
-                <Button onClick={() => onDeployClick(repo)}>Desplegar Proyecto</Button>
+                <Button onClick={() => setCurrentView('DEPLOY_CONFIG')}>Desplegar Proyecto</Button>
             </div>
           </div>
         )}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Repository, Platform, DeploymentConfig } from '../types';
+import { Platform, DeploymentConfig } from '../types';
+import { useAppContext } from '../contexts/AppContext';
 import { VercelIcon } from './icons/VercelIcon';
 import { RailwayIcon } from './icons/RailwayIcon';
 import { NetlifyIcon } from './icons/NetlifyIcon';
@@ -9,13 +10,8 @@ import { EyeIcon } from './icons/EyeIcon';
 import { EyeSlashIcon } from './icons/EyeSlashIcon';
 import { UploadIcon } from './icons/UploadIcon';
 
-interface DeployConfigProps {
-  repo: Repository;
-  onProceed: (config: DeploymentConfig) => void;
-  onBack: () => void;
-}
-
-const DeployConfig: React.FC<DeployConfigProps> = ({ repo, onProceed, onBack }) => {
+const DeployConfig: React.FC = () => {
+  const { selectedRepo: repo, proceedToFinalize } = useAppContext();
   const [platform, setPlatform] = useState<Platform>(Platform.VERCEL);
   const [envVars, setEnvVars] = useState<{ key: string; value: string }[]>([{ key: '', value: '' }]);
   const [showEnvValues, setShowEnvValues] = useState<Record<number, boolean>>({});
@@ -23,15 +19,16 @@ const DeployConfig: React.FC<DeployConfigProps> = ({ repo, onProceed, onBack }) 
   const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
-    // Basic detection logic, can be improved
-    const paths = repo.fileTree.map(f => f.path.toLowerCase());
-    const isBackend = paths.some(p => 
-      p.endsWith('requirements.txt') || p.endsWith('pom.xml') || p.endsWith('go.mod')
-    );
-    if(isBackend) {
-        setPlatform(Platform.RAILWAY);
-    } else {
-        setPlatform(Platform.VERCEL);
+    if (repo) {
+      const paths = repo.fileTree.map(f => f.path.toLowerCase());
+      const isBackend = paths.some(p => 
+        p.endsWith('requirements.txt') || p.endsWith('pom.xml') || p.endsWith('go.mod')
+      );
+      if(isBackend) {
+          setPlatform(Platform.RAILWAY);
+      } else {
+          setPlatform(Platform.VERCEL);
+      }
     }
   }, [repo]);
 
@@ -86,9 +83,7 @@ const DeployConfig: React.FC<DeployConfigProps> = ({ repo, onProceed, onBack }) 
                           if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
                               value = value.slice(1, -1);
                           }
-
                           if (!key) return null;
-
                           return { key, value };
                       })
                       .filter((v): v is { key: string; value: string } => v !== null);
@@ -112,7 +107,6 @@ const DeployConfig: React.FC<DeployConfigProps> = ({ repo, onProceed, onBack }) 
           e.dataTransfer.clearData();
       }
   };
-
 
   const handleAddEnvVar = () => {
     setEnvVars([...envVars, { key: '', value: '' }]);
@@ -138,14 +132,16 @@ const DeployConfig: React.FC<DeployConfigProps> = ({ repo, onProceed, onBack }) 
   };
 
   const handleProceedClick = () => {
-    if (!platform) return;
+    if (!platform || !repo) return;
     const filteredEnvVars = envVars.filter(v => v.key.trim() !== '');
-    onProceed({ repo, envVars: filteredEnvVars, platform });
+    proceedToFinalize({ repo, envVars: filteredEnvVars, platform });
   };
+
+  if (!repo) return null;
 
   return (
     <div className="max-w-2xl mx-auto">
-      <button onClick={onBack} className="flex items-center text-sm text-[#40FDAE] hover:text-[#35e09b] mb-4">
+      <button onClick={() => useAppContext().setCurrentView('CODE_ASSISTANT')} className="flex items-center text-sm text-[#40FDAE] hover:text-[#35e09b] mb-4">
         <BackArrowIcon className="h-4 w-4 mr-1"/>
         Volver al Asistente de Código
       </button>

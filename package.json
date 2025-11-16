@@ -18,7 +18,8 @@
     "@anthropic-ai/sdk": "^0.69.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "path": "^0.12.7"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

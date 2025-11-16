@@ -1,20 +1,16 @@
 import React, { useState } from 'react';
 import { GithubIcon } from './icons/GithubIcon';
 import Spinner from './Spinner';
+import { useAppContext } from '../contexts/AppContext';
 
-interface LoginScreenProps {
-  onLogin: (token: string, remember: boolean) => void;
-  loading: boolean;
-  error: string | null;
-}
-
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, loading, error }) => {
+const LoginScreen: React.FC = () => {
+  const { login, isLoading, error } = useAppContext();
   const [token, setToken] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
 
   const handleLoginClick = () => {
     if (token.trim()) {
-      onLogin(token.trim(), rememberMe);
+      login(token.trim(), rememberMe);
     }
   };
 
@@ -51,10 +47,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, loading, error }) =>
           </div>
           <button
             onClick={handleLoginClick}
-            disabled={loading || !token.trim()}
+            disabled={isLoading || !token.trim()}
             className="w-full flex items-center justify-center px-6 py-3 text-lg font-bold bg-[#B858FE] text-black rounded-lg hover:bg-[#a048e0] transition-all duration-300 transform hover:scale-105 disabled:bg-[#15333B] disabled:text-gray-300 disabled:scale-100 disabled:cursor-not-allowed"
           >
-            {loading ? (
+            {isLoading ? (
               <Spinner />
             ) : (
               <>

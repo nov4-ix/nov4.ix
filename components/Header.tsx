@@ -1,16 +1,12 @@
 import React from 'react';
-import { User } from '../types';
+import { useAppContext } from '../contexts/AppContext';
 import { LogoIcon } from './icons/LogoIcon';
 import { GithubIcon } from './icons/GithubIcon';
 import { CogIcon } from './icons/CogIcon';
 
-interface HeaderProps {
-  user: User | null;
-  onLogout: () => void;
-  onOpenAiConfig: () => void;
-}
+const Header: React.FC = () => {
+  const { user, logout, setIsAiConfigModalOpen } = useAppContext();
 
-const Header: React.FC<HeaderProps> = ({ user, onLogout, onOpenAiConfig }) => {
   return (
     <header className="bg-[#1C232E]/50 border-b border-[#15333B] backdrop-blur-sm sticky top-0 z-50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -20,7 +16,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onOpenAiConfig }) => {
             <span className="ml-3 text-2xl font-bold text-white tracking-tight">Son1k-GO!</span>
           </div>
           <div className="flex items-center space-x-4">
-            <button onClick={onOpenAiConfig} className="p-2 rounded-full text-gray-400 hover:bg-[#122024]/50 hover:text-white transition-colors">
+            <button onClick={() => setIsAiConfigModalOpen(true)} className="p-2 rounded-full text-gray-400 hover:bg-[#122024]/50 hover:text-white transition-colors">
               <CogIcon className="h-6 w-6" />
             </button>
             {user ? (
@@ -30,7 +26,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onOpenAiConfig }) => {
                     <span className="text-gray-300">{user.name}</span>
                  </div>
                 <button
-                  onClick={onLogout}
+                  onClick={logout}
                   className="px-3 py-1.5 text-sm font-medium text-gray-300 bg-[#122024]/50 rounded-md hover:bg-[#122024]"
                 >
                   Cerrar sesión

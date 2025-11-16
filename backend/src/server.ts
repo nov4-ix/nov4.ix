@@ -107,7 +107,7 @@ Do NOT use markdown code fences. Just the raw code.`;
         suggestion = await callLocalProvider(config.baseUrl, config.model, systemInstruction, prompt);
 
     } else if (config.provider === AIProvider.GEMINI) {
-        const ai = new GoogleGenAI(process.env.GEMINI_API_KEY!);
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
         const response = await ai.models.generateContent({ model: config.model, contents: prompt, config: { systemInstruction } });
         suggestion = response.text;
     } else if (config.provider === AIProvider.OPENAI) {
@@ -139,7 +139,7 @@ async function handleAnalyzeProject(req: Request, res: Response) {
     let findingsText = '';
     
     if (config.provider === AIProvider.GEMINI) {
-        const ai = new GoogleGenAI(process.env.GEMINI_API_KEY!);
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
         const systemInstruction = `You are an expert senior software engineer performing a code review. Respond ONLY with a valid JSON array of objects...`;
         const response = await ai.models.generateContent({
             model: config.model, contents: prompt,
@@ -181,7 +181,7 @@ Do NOT include any other text, preamble, or explanation. Do NOT use markdown cod
     let newCode = '';
 
     if (config.provider === AIProvider.GEMINI) {
-        const ai = new GoogleGenAI(process.env.GEMINI_API_KEY!);
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
         const response = await ai.models.generateContent({ model: config.model, contents: prompt, config: { systemInstruction } });
         newCode = response.text;
     } else if (isLocalProvider(config.provider)) {
@@ -200,7 +200,7 @@ async function handleCleanupSuggestions(req: Request, res: Response) {
     let suggestionsText = '';
 
     if (config.provider === AIProvider.GEMINI) {
-        const ai = new GoogleGenAI(process.env.GEMINI_API_KEY!);
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
         const systemInstruction = `You are an expert software engineer... Respond ONLY with a valid JSON array of objects...`;
         const response = await ai.models.generateContent({
             model: config.model, contents: prompt,
