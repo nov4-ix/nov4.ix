@@ -1,7 +1,8 @@
 
+
 import * as vscode from "vscode";
 import { getNonce } from "../utilities/getNonce";
-import { FileTreeItem, User, Repository } from "../../../types";
+import { FileTreeItem, User, Repository } from "../types";
 
 export class CodeAssistantPanel {
   public static currentPanel: CodeAssistantPanel | undefined;
