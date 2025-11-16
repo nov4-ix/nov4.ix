@@ -1,5 +1,4 @@
 
-
 import * as vscode from "vscode";
 import { getNonce } from "../utilities/getNonce";
 import { FileTreeItem, User, Repository } from "../types";
@@ -156,7 +155,6 @@ export class CodeAssistantPanel {
   private _getWebviewContent(webview: vscode.Webview) {
     const nonce = getNonce();
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, '..', 'index.tsx'));
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, '..', 'index.css'));
 
     return `
       <!DOCTYPE html>
@@ -167,9 +165,9 @@ export class CodeAssistantPanel {
           <meta http-equiv="Content-Security-Policy" content="
               default-src 'none';
               style-src ${webview.cspSource} 'unsafe-inline' https://cdnjs.cloudflare.com;
-              script-src 'nonce-${nonce}' https://aistudiocdn.com https://cdnjs.cloudflare.com;
+              script-src 'nonce-${nonce}' ${webview.cspSource} https://aistudiocdn.com https://cdnjs.cloudflare.com;
               img-src ${webview.cspSource} https: data:;
-              connect-src https:;
+              connect-src https: http://localhost:3001;
               font-src https://cdnjs.cloudflare.com;
           ">
           <title>Son1k-GO! Assistant</title>
