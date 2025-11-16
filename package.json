@@ -13,7 +13,12 @@
     "react": "^19.2.0",
     "@google/genai": "^1.29.0",
     "highlight.js": "^11.11.1",
-    "vscode": "^1.1.37"
+    "vscode": "^1.1.37",
+    "openai": "^6.9.0",
+    "@anthropic-ai/sdk": "^0.69.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

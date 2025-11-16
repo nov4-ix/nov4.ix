@@ -33,13 +33,14 @@ export enum AIProvider {
     GEMINI = 'gemini',
     OPENAI = 'openai',
     ANTHROPIC = 'anthropic',
+    OLLAMA = 'ollama',
+    MYSTYSTUDIO = 'mystystudio',
 }
 
 export type AIConfig = {
     provider: AIProvider;
-    apiKey: string;
     model: string;
-    baseUrl?: string; // For OpenAI-compatible endpoints like Ollama
+    baseUrl?: string;
 }
 
 export interface ChatMessage {

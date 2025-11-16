@@ -19,11 +19,33 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose, config, 
   
   const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newProvider = e.target.value as AIProvider;
+    let model = '';
+    let baseUrl: string | undefined = undefined;
+
+    switch (newProvider) {
+        case AIProvider.GEMINI:
+            model = 'gemini-2.5-flash';
+            break;
+        case AIProvider.OPENAI:
+            model = 'gpt-4o';
+            break;
+        case AIProvider.ANTHROPIC:
+            model = 'claude-3-haiku-20240307';
+            break;
+        case AIProvider.OLLAMA:
+            model = 'llama3'; // A sensible default for ollama
+            baseUrl = 'http://localhost:11434';
+            break;
+        case AIProvider.MYSTYSTUDIO:
+            model = 'codestral'; // A sensible default for Mystystudio
+            baseUrl = 'http://localhost:8080';
+            break;
+    }
+
     const newConfig: AIConfig = {
         provider: newProvider,
-        apiKey: '',
-        model: newProvider === AIProvider.GEMINI ? 'gemini-2.5-flash' : (newProvider === AIProvider.ANTHROPIC ? 'claude-3-haiku-20240307' : 'gpt-4o'),
-        baseUrl: '',
+        model,
+        baseUrl,
     };
     setLocalConfig(newConfig);
   };
@@ -41,28 +63,28 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose, config, 
   const providerDetails = {
     [AIProvider.GEMINI]: {
         name: "Google Gemini",
-        needsKey: false,
-        models: ["gemini-2.5-pro", "gemini-2.5-flash"],
-        needsBaseUrl: false,
-        description: "Usa la clave de API proporcionada en el entorno. No se necesita configuración adicional."
+        description: "Usa la clave de API de Gemini configurada en el servidor backend. Es el proveedor recomendado y por defecto."
     },
     [AIProvider.OPENAI]: {
-        name: "OpenAI / Compatible",
-        needsKey: true,
-        models: ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
-        needsBaseUrl: true,
-        description: "Para la API de OpenAI o cualquier servicio compatible como Ollama. Para Ollama, usa el nombre de tu modelo (ej. 'llama3') y establece la URL Base a http://localhost:11434/v1."
+        name: "OpenAI",
+        description: "Usa la clave de API de OpenAI configurada en el servidor backend."
     },
     [AIProvider.ANTHROPIC]: {
         name: "Anthropic Claude",
-        needsKey: true,
-        models: ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
-        needsBaseUrl: false,
-        description: "Usa la API oficial de Anthropic para los modelos Claude."
+        description: "Usa la clave de API de Anthropic configurada en el servidor backend."
+    },
+    [AIProvider.OLLAMA]: {
+        name: "Ollama (Local)",
+        description: "Conéctate a una instancia local de Ollama. Asegúrate de que Ollama esté en ejecución y sea accesible."
+    },
+    [AIProvider.MYSTYSTUDIO]: {
+        name: "Mystystudio (Local)",
+        description: "Conéctate a una instancia local de Mystystudio (u otro servidor compatible con OpenAI). Asegúrate de que el servidor esté en ejecución."
     },
   }
 
   const currentProvider = providerDetails[localConfig.provider];
+  const isLocalProvider = localConfig.provider === AIProvider.OLLAMA || localConfig.provider === AIProvider.MYSTYSTUDIO;
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={onClose}>
@@ -85,25 +107,11 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose, config, 
               <option value={AIProvider.GEMINI}>{providerDetails.gemini.name}</option>
               <option value={AIProvider.OPENAI}>{providerDetails.openai.name}</option>
               <option value={AIProvider.ANTHROPIC}>{providerDetails.anthropic.name}</option>
+              <option value={AIProvider.OLLAMA}>{providerDetails.ollama.name}</option>
+              <option value={AIProvider.MYSTYSTUDIO}>{providerDetails.mystystudio.name}</option>
             </select>
             <p className="text-xs text-gray-500 mt-1">{currentProvider.description}</p>
           </div>
-
-          {currentProvider.needsKey && (
-             <div>
-                <label htmlFor="apiKey" className="block text-sm font-medium text-gray-300 mb-1">Clave de API</label>
-                <input
-                  type="password"
-                  id="apiKey"
-                  name="apiKey"
-                  value={localConfig.apiKey}
-                  onChange={handleChange}
-                  placeholder="Ingresa tu Clave de API"
-                  className="w-full px-3 py-2 bg-[#171925] border border-[#15333B] rounded-md text-sm outline-none focus:ring-1 focus:ring-[#B858FE]"
-                />
-            </div>
-          )}
-
            <div>
                 <label htmlFor="model" className="block text-sm font-medium text-gray-300 mb-1">Nombre del Modelo</label>
                 <input
@@ -112,25 +120,26 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ isOpen, onClose, config, 
                   name="model"
                   value={localConfig.model}
                   onChange={handleChange}
-                  placeholder="e.g., gpt-4o"
+                  placeholder="e.g., gpt-4o, llama3, codestral"
                   className="w-full px-3 py-2 bg-[#171925] border border-[#15333B] rounded-md text-sm outline-none focus:ring-1 focus:ring-[#B858FE]"
                 />
             </div>
-          
-           {currentProvider.needsBaseUrl && (
-             <div>
-                <label htmlFor="baseUrl" className="block text-sm font-medium text-gray-300 mb-1">URL Base (Opcional)</label>
-                <input
-                  type="text"
-                  id="baseUrl"
-                  name="baseUrl"
-                  value={localConfig.baseUrl}
-                  onChange={handleChange}
-                  placeholder="e.g., http://localhost:11434/v1"
-                  className="w-full px-3 py-2 bg-[#171925] border border-[#15333B] rounded-md text-sm outline-none focus:ring-1 focus:ring-[#B858FE]"
-                />
-            </div>
-          )}
+
+            {isLocalProvider && (
+                <div>
+                    <label htmlFor="baseUrl" className="block text-sm font-medium text-gray-300 mb-1">{currentProvider.name} Base URL</label>
+                    <input
+                      type="text"
+                      id="baseUrl"
+                      name="baseUrl"
+                      value={localConfig.baseUrl || ''}
+                      onChange={handleChange}
+                      placeholder={localConfig.provider === AIProvider.OLLAMA ? "http://localhost:11434" : "http://localhost:8080"}
+                      className="w-full px-3 py-2 bg-[#171925] border border-[#15333B] rounded-md text-sm outline-none focus:ring-1 focus:ring-[#B858FE]"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">La URL donde tu servidor local está escuchando.</p>
+                </div>
+            )}
         </div>
 
         <div className="mt-6 flex justify-end">

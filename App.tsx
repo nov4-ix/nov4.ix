@@ -1,8 +1,10 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, Repository, AIConfig, AIProvider, DeploymentConfig, ChatMessage, FileTreeItem } from './types';
 import { api } from './services/api';
 import { vscodeApi } from './services/vscodeApi';
+import { GitHubAPIError } from './services/errors';
 
 import Header from './components/Header';
 import LoginScreen from './components/LoginScreen';
@@ -15,11 +17,10 @@ import AIConfigModal from './components/AIConfigModal';
 
 type AppView = 'LOGIN' | 'REPO_SELECTOR' | 'CODE_ASSISTANT' | 'DEPLOY_CONFIG' | 'DEPLOY_FINALIZE';
 
+// FIX: Removed properties not defined in AIConfig type. API keys are handled server-side.
 const DEFAULT_AI_CONFIG: AIConfig = {
     provider: AIProvider.GEMINI,
-    apiKey: '',
     model: 'gemini-2.5-flash',
-    baseUrl: '',
 };
 
 // FIX: Declare acquireVsCodeApi to inform TypeScript that this function is globally available in a VS Code webview context.
@@ -89,9 +90,21 @@ const App: React.FC = () => {
         setCurrentView('REPO_SELECTOR');
 
       } catch (err) {
-          const message = err instanceof Error ? err.message : "An unknown error occurred.";
+          let message = "An unknown error occurred.";
+          if (err instanceof GitHubAPIError) {
+              if (err.isRateLimit) {
+                  message = 'Límite de la API de GitHub alcanzado. Por favor, inténtalo de nuevo en una hora.';
+              } else if (err.statusCode === 401) {
+                  message = 'Error de autenticación (401): Tu token de GitHub es inválido o ha expirado.';
+              } else {
+                  message = `Error de la API de GitHub (${err.statusCode}): ${err.message}`;
+              }
+          } else if (err instanceof Error) {
+              message = err.message;
+          }
+        
           console.error("Login failed:", err);
-          setError(`Error de la API de GitHub: ${message}`);
+          setError(message);
           sessionStorage.removeItem('github_token');
           localStorage.removeItem('github_token');
           setToken(null);

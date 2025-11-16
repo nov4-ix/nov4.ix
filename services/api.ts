@@ -1,4 +1,5 @@
 import { User, Repository, FileTreeItem } from '../types';
+import { GitHubAPIError } from './errors';
 
 const GITHUB_API_BASE = 'https://api.github.com';
 
@@ -14,20 +15,28 @@ const makeGithubRequest = async (endpoint: string, token: string, options: Reque
       ...(options.body && { 'Content-Type': 'application/json' }),
     },
   });
+
   if (!response.ok) {
-    if (response.status === 409) {
-        throw new Error(`Conflicto (409): El archivo fue modificado. Por favor, refresca e inténtalo de nuevo.`);
+    if (response.status === 403 && response.headers.get('X-RateLimit-Remaining') === '0') {
+      throw new GitHubAPIError(
+        'Límite de la API de GitHub alcanzado. Intenta de nuevo en una hora.',
+        response.status,
+        true // isRateLimit
+      );
     }
+
+    let errorMessage = `Error de la API de GitHub: ${response.status} ${response.statusText}`;
     try {
         const errorBody = await response.json();
         console.error("GitHub API Error:", response.status, errorBody);
-        const message = typeof errorBody.message === 'string' ? errorBody.message : JSON.stringify(errorBody);
-        throw new Error(message || `Error de la API de GitHub: ${response.status} ${response.statusText}`);
+        errorMessage = typeof errorBody.message === 'string' ? errorBody.message : JSON.stringify(errorBody);
     } catch (e) {
-        // This catch is for when response.json() fails (e.g., empty response body)
-        throw new Error(`Error de la API de GitHub: ${response.status} ${response.statusText}`);
+        // Ignore if the body can't be parsed, use the status text as the message.
     }
+    
+    throw new GitHubAPIError(errorMessage, response.status);
   }
+
   if (response.status === 204 || !parseAsJson) return null;
   return response.json();
 };
